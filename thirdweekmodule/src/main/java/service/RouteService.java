@@ -11,38 +11,44 @@ import java.util.List;
 
 public class RouteService {
 
-    private static final int ROUTE_COUNT = 2;
+    public record RouteBuildRequest(RouteStrategy strategy, int startIndex, String label) {
+        public RouteBuildRequest(RouteStrategy strategy, int startIndex) {
+            this(strategy, startIndex, strategy.getClass().getSimpleName());
+        }
+    }
 
-    private final RouteRepository repository;
-    private final RouteStrategy strategy;
+    private final RouteRepository routeRepository;
+    private final List<RouteBuildRequest> buildRequests;
 
-    public RouteService(RouteRepository repository, RouteStrategy strategy) {
-        this.repository = repository;
-        this.strategy = strategy;
+    public RouteService(RouteRepository routeRepository, List<RouteBuildRequest> buildRequests) {
+        if (buildRequests == null || buildRequests.isEmpty()) {
+            throw new IllegalArgumentException("At least one route build request is required");
+        }
+        this.routeRepository = routeRepository;
+        this.buildRequests = List.copyOf(buildRequests);
     }
 
     public List<Route> generateAndSave(List<Point> points) {
-        List<Route> routes = calculateRoutes(points);
-        markFastestRoute(routes);
-        repository.saveAll(routes);
-        return routes;
-    }
+        if (points == null || points.isEmpty()) {
+            throw new IllegalArgumentException("Points are required to compute routes");
+        }
 
-    private List<Route> calculateRoutes(List<Point> points) {
-        List<Route> routes = new ArrayList<>(ROUTE_COUNT);
+        routeRepository.clearAll();
 
-        for (int startIndex = 0; startIndex < ROUTE_COUNT; startIndex++) {
-            routes.add(strategy.buildRoute(points, startIndex));
+        List<Route> routes = new ArrayList<>();
+        for (RouteBuildRequest request : buildRequests) {
+            routes.add(request.strategy().buildRoute(points, request.startIndex()));
         }
 
         routes.sort(Comparator.comparingDouble(Route::getTotalTime));
+        routes.forEach(route -> route.setFastest(false));
+        routes.getFirst().setFastest(true);
+
+        routeRepository.saveAll(routes);
         return routes;
     }
 
-    private void markFastestRoute(List<Route> routes) {
-        if (routes.isEmpty()) {
-            return;
-        }
-        routes.get(0).setFastest(true);
+    public List<Route> getAll() {
+        return routeRepository.getAll();
     }
 }

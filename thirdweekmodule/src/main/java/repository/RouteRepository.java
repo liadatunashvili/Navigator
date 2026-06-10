@@ -31,4 +31,8 @@ public class RouteRepository {
     public List<Route> getAll() {
         return mapper.findAllWithPoints();
     }
+
+    public void clearAll() {
+        mapper.deleteAll();
+    }
 }

@@ -13,6 +13,10 @@
         VALUES (#{routeId}, #{pointId}, #{position})
     </insert>
 
+    <delete id="deleteAll">
+        DELETE FROM routes
+    </delete>
+
     <resultMap id="routeMap" type="model.Route">
         <id     property="id"        column="r_id"/>
         <result property="totalTime" column="total_time"/>

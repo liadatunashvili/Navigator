@@ -2,16 +2,20 @@ package dijkstra;
 
 import model.Point;
 import model.Route;
+import util.DistanceUtil;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
+/**
+ * Builds a route by repeatedly choosing the next unvisited point with the
+ * shortest Dijkstra path from the current position on the complete graph of
+ * remaining points.
+ */
 public class DijkstraStrategy implements RouteStrategy {
 
     @Override
     public Route buildRoute(List<Point> points, int startIndex) {
-        Map<Long, Point> byId = points.stream()
-                .collect(Collectors.toMap(Point::getId, p -> p));
+        validateInput(points, startIndex);
 
         List<Point> unvisited = new ArrayList<>(points);
         List<Point> path = new ArrayList<>();
@@ -20,7 +24,7 @@ public class DijkstraStrategy implements RouteStrategy {
         path.add(current);
 
         while (!unvisited.isEmpty()) {
-            Point next = dijkstraNearest(current, unvisited, byId);
+            Point next = findNextByDijkstra(current, unvisited);
             unvisited.remove(next);
             path.add(next);
             current = next;
@@ -28,50 +32,59 @@ public class DijkstraStrategy implements RouteStrategy {
 
         Route route = new Route();
         route.setPoints(path);
-        route.setTotalTime(calculateTotalTime(path));
+        route.setTotalTime(DistanceUtil.totalPathDistance(path));
         return route;
     }
 
-    private Point dijkstraNearest(Point src, List<Point> candidates,
-                                  Map<Long, Point> byId) {
-        Map<Long, Double> dist = new HashMap<>();
-        PriorityQueue<Long> pq = new PriorityQueue<>(
-                Comparator.comparingDouble(dist::get));
+    private Point findNextByDijkstra(Point source, List<Point> unvisited) {
+        Map<Long, Double> distances = new HashMap<>();
+        PriorityQueue<Point> queue = new PriorityQueue<>(
+                Comparator.comparingDouble(p -> distances.getOrDefault(p.getId(), Double.MAX_VALUE)));
 
-        for (Point p : candidates) dist.put(p.getId(), Double.MAX_VALUE);
-        dist.put(src.getId(), 0.0);
-        pq.add(src.getId());
+        for (Point point : unvisited) {
+            distances.put(point.getId(), Double.MAX_VALUE);
+            queue.add(point);
+        }
 
-        while (!pq.isEmpty()) {
-            Long u = pq.poll();
-            Point uPoint = byId.get(u);
+        for (Point candidate : unvisited) {
+            double direct = DistanceUtil.euclidean(source, candidate);
+            if (direct < distances.get(candidate.getId())) {
+                distances.put(candidate.getId(), direct);
+            }
+        }
 
-            for (Point neighbour : candidates) {
-                if (neighbour.getId().equals(u)) continue;
-                double alt = dist.get(u) + euclidean(uPoint, neighbour);
-                if (alt < dist.getOrDefault(neighbour.getId(), Double.MAX_VALUE)) {
-                    dist.put(neighbour.getId(), alt);
-                    pq.remove(neighbour.getId());
-                    pq.add(neighbour.getId());
+        queue.clear();
+        queue.addAll(unvisited);
+
+        while (!queue.isEmpty()) {
+            Point current = queue.poll();
+            double currentDistance = distances.get(current.getId());
+
+            for (Point neighbour : unvisited) {
+                if (neighbour.getId().equals(current.getId())) {
+                    continue;
+                }
+
+                double alternative = currentDistance + DistanceUtil.euclidean(current, neighbour);
+                if (alternative < distances.get(neighbour.getId())) {
+                    distances.put(neighbour.getId(), alternative);
+                    queue.remove(neighbour);
+                    queue.add(neighbour);
                 }
             }
         }
 
-        return candidates.stream()
-                .min(Comparator.comparingDouble(p -> dist.get(p.getId())))
+        return unvisited.stream()
+                .min(Comparator.comparingDouble(p -> distances.get(p.getId())))
                 .orElseThrow();
     }
 
-    private double calculateTotalTime(List<Point> path) {
-        double total = 0;
-        for (int i = 0; i < path.size() - 1; i++) {
-            total += euclidean(path.get(i), path.get(i + 1));
+    private void validateInput(List<Point> points, int startIndex) {
+        if (points == null || points.isEmpty()) {
+            throw new IllegalArgumentException("At least one point is required to build a route");
         }
-        return total;
-    }
-
-    private double euclidean(Point a, Point b) {
-        return Math.sqrt(Math.pow(a.getX() - b.getX(), 2)
-                + Math.pow(a.getY() - b.getY(), 2));
+        if (startIndex < 0 || startIndex >= points.size()) {
+            throw new IllegalArgumentException("Start index is out of bounds: " + startIndex);
+        }
     }
 }

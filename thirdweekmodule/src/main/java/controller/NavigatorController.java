@@ -19,7 +19,7 @@ public class NavigatorController {
 
     public void run() {
         System.out.println("Generating 100 random points...");
-        List<Point> points = pointService.generateAndSave(100);
+        List<Point> points = pointService.generateAndSave(PointService.DEFAULT_POINT_COUNT);
         System.out.println("Points generated and saved.\n");
 
         System.out.println("Computing routes...");
