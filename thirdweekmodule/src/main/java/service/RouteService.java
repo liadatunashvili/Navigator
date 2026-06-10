@@ -10,6 +10,9 @@ import java.util.Comparator;
 import java.util.List;
 
 public class RouteService {
+
+    private static final int ROUTE_COUNT = 2;
+
     private final RouteRepository repository;
     private final RouteStrategy strategy;
 
@@ -19,14 +22,27 @@ public class RouteService {
     }
 
     public List<Route> generateAndSave(List<Point> points) {
-        Route r1 = strategy.buildRoute(points, 0);
-        Route r2 = strategy.buildRoute(points, 1);
-
-        List<Route> routes = new ArrayList<>(List.of(r1, r2));
-        routes.sort(Comparator.comparingDouble(Route::getTotalTime));
-        routes.get(0).setFastest(true);
-
+        List<Route> routes = calculateRoutes(points);
+        markFastestRoute(routes);
         repository.saveAll(routes);
         return routes;
+    }
+
+    private List<Route> calculateRoutes(List<Point> points) {
+        List<Route> routes = new ArrayList<>(ROUTE_COUNT);
+
+        for (int startIndex = 0; startIndex < ROUTE_COUNT; startIndex++) {
+            routes.add(strategy.buildRoute(points, startIndex));
+        }
+
+        routes.sort(Comparator.comparingDouble(Route::getTotalTime));
+        return routes;
+    }
+
+    private void markFastestRoute(List<Route> routes) {
+        if (routes.isEmpty()) {
+            return;
+        }
+        routes.get(0).setFastest(true);
     }
 }
