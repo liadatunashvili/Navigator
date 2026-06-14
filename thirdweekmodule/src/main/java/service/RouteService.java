@@ -10,23 +10,45 @@ import java.util.Comparator;
 import java.util.List;
 
 public class RouteService {
-    private final RouteRepository repository;
-    private final RouteStrategy strategy;
 
-    public RouteService(RouteRepository repository, RouteStrategy strategy) {
-        this.repository = repository;
-        this.strategy = strategy;
+    public record RouteBuildRequest(RouteStrategy strategy, int startIndex, String label) {
+        public RouteBuildRequest(RouteStrategy strategy, int startIndex) {
+            this(strategy, startIndex, strategy.getClass().getSimpleName());
+        }
+    }
+
+    private final RouteRepository routeRepository;
+    private final List<RouteBuildRequest> buildRequests;
+
+    public RouteService(RouteRepository routeRepository, List<RouteBuildRequest> buildRequests) {
+        if (buildRequests == null || buildRequests.isEmpty()) {
+            throw new IllegalArgumentException("At least one route build request is required");
+        }
+        this.routeRepository = routeRepository;
+        this.buildRequests = List.copyOf(buildRequests);
     }
 
     public List<Route> generateAndSave(List<Point> points) {
-        Route r1 = strategy.buildRoute(points, 0);
-        Route r2 = strategy.buildRoute(points, 1);
+        if (points == null || points.isEmpty()) {
+            throw new IllegalArgumentException("Points are required to compute routes");
+        }
 
-        List<Route> routes = new ArrayList<>(List.of(r1, r2));
+        routeRepository.clearAll();
+
+        List<Route> routes = new ArrayList<>();
+        for (RouteBuildRequest request : buildRequests) {
+            routes.add(request.strategy().buildRoute(points, request.startIndex()));
+        }
+
         routes.sort(Comparator.comparingDouble(Route::getTotalTime));
-        routes.get(0).setFastest(true);
+        routes.forEach(route -> route.setFastest(false));
+        routes.getFirst().setFastest(true);
 
-        repository.saveAll(routes);
+        routeRepository.saveAll(routes);
         return routes;
+    }
+
+    public List<Route> getAll() {
+        return routeRepository.getAll();
     }
 }
